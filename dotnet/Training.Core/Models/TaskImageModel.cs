@@ -32,7 +32,7 @@ namespace Training.Core
 
         #region Variables
 
-        private readonly Document _taskDocument;
+        private readonly MutableDocument _taskDocument;
 
         #endregion
 
@@ -49,7 +49,7 @@ namespace Training.Core
                 if (value == null) {
                     _taskDocument.Remove("image");
                 } else {
-                    _taskDocument.Set("image", new Blob("image/png", value));
+                    _taskDocument.SetBlob("image", new Blob("image/png", value));
                 }
 
                 CoreApp.Database.Save(_taskDocument);
@@ -66,7 +66,7 @@ namespace Training.Core
         /// <param name="documentID">The id of the document to read from</param>
         public TaskImageModel(string documentID)
         {
-            _taskDocument = CoreApp.Database.GetDocument(documentID);
+            _taskDocument = CoreApp.Database.GetDocument(documentID).ToMutable();
         }
 
         #endregion

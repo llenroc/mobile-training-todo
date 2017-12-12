@@ -35,7 +35,7 @@ namespace Training.Core
 
         #region Variables
 
-        private readonly Document _document;
+        private readonly MutableDocument _document;
 
         #endregion
 
@@ -76,7 +76,7 @@ namespace Training.Core
         /// this task</param>
         public TaskModel(string documentID)
         {
-            _document = CoreApp.Database.GetDocument(documentID);
+            _document = CoreApp.Database.GetDocument(documentID).ToMutable();
             _name = new Lazy<string>(() => _document.GetString("task"), LazyThreadSafetyMode.None);
             _imageDigest = new Lazy<string>(() => {
                 var metadata = _document.GetBlob("image")?.Properties;

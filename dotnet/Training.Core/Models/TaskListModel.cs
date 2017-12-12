@@ -32,7 +32,7 @@ namespace Training.Core
 
         #region Variables
 
-        private readonly Document _document;
+        private readonly MutableDocument _document;
 
         #endregion
 
@@ -53,7 +53,7 @@ namespace Training.Core
         /// <param name="documentId">The ID of the document containing information for this entry</param>
         public TaskListModel(string documentId)
         {
-            _document = CoreApp.Database.GetDocument(documentId);
+            _document = CoreApp.Database.GetDocument(documentId).ToMutable();
         }
 
         #endregion
@@ -89,7 +89,7 @@ namespace Training.Core
         public void Edit(string name)
         {
             try {
-                _document.Set("name", name);
+                _document.SetString("name", name);
             } catch(Exception e) {
                 throw new Exception("Couldn't edit task list", e);
             }

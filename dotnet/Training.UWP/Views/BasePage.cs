@@ -19,7 +19,8 @@
 // limitations under the License.
 // 
 using System;
-using MvvmCross.WindowsUWP.Views;
+
+using MvvmCross.Uwp.Views;
 
 namespace Training
 {
@@ -36,20 +37,12 @@ namespace Training
         /// </summary>
         /// <param name="finalizing">Whether or not this is the finalizer (always false unless
         /// a subclass call it from a finalizer)</param>
-        protected virtual void Dispose(bool finalizing)
+        protected override void Dispose(bool finalizing)
         {
             (DataContext as IDisposable)?.Dispose();
         }
 
         #endregion
 
-        #region IDisposable
-
-        public void Dispose()
-        {
-            Dispose(false);
-        }
-
-        #endregion
     }
 }

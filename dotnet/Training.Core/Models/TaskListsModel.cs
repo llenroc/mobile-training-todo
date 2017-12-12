@@ -44,7 +44,8 @@ namespace Training.Core
         private Database _db;
         private IQuery _filteredQuery;
         private IQuery _fullQuery;
-        private ILiveQuery _incompleteQuery;
+        private IQuery _incompleteQuery;
+        private ListenerToken _cancelIncomplete;
         private string _searchText;
         private readonly IDictionary<string, int> _incompleteCount = new Dictionary<string, int>();
 
@@ -109,13 +110,14 @@ namespace Training.Core
         {
             var docId = $"{Username}.{Guid.NewGuid()}";
             try {
-                var doc = new Document(docId);
-                doc["type"].Value = TaskListType;
-                doc["name"].Value = name;
-                doc["owner"].Value = Username;
-                _db.Save(doc);
-                Filter(_searchText);
-                return doc;
+                using (var doc = new MutableDocument(docId)) {
+                    doc["type"].Value = TaskListType;
+                    doc["name"].Value = name;
+                    doc["owner"].Value = Username;
+                    _db.Save(doc);
+                    Filter(_searchText);
+                    return doc;
+                }
             } catch(Exception e) {
                 var newException = new Exception("Couldn't save task list", e);
                 throw newException;
@@ -128,12 +130,12 @@ namespace Training.Core
             var query = default(IQuery);
             if(!String.IsNullOrEmpty(searchText)) {
                 query = _filteredQuery;
-                query.Parameters.Set("searchText", $"%{searchText}%");
+                query.Parameters.SetString("searchText", $"%{searchText}%");
             } else {
                 query = _fullQuery;
             }
 
-            using (var results = query.Run()) {
+            using (var results = query.Execute()) {
                 TasksList.Replace(results.Select(x => new TaskListCellModel(x.GetString(0), x.GetString(1)) {
                     IncompleteCount = _incompleteCount.ContainsKey(x.GetString(0)) ? _incompleteCount[x.GetString(0)] : 0
                 }));
@@ -146,9 +148,9 @@ namespace Training.Core
 
         private void SetupQuery()
         {
-            _db.CreateIndex(new[] { Expression.Property("name") });
+            _db.CreateIndex("name", Index.ValueIndex(ValueIndexItem.Expression(Expression.Property("name"))));
 
-            _filteredQuery = Query.Select(SelectResult.Expression(Expression.Meta().DocumentID), 
+            _filteredQuery = Query.Select(SelectResult.Expression(Meta.ID), 
                 SelectResult.Expression(Expression.Property("name")))
                 .From(DataSource.Database(_db))
                 .Where(Expression.Property("name")
@@ -156,11 +158,11 @@ namespace Training.Core
                     .And(Expression.Property("type").EqualTo("task-list")))
                 .OrderBy(Ordering.Property("name"));
 
-            _fullQuery = Query.Select(SelectResult.Expression(Expression.Meta().DocumentID),
+            _fullQuery = Query.Select(SelectResult.Expression(Meta.ID),
                     SelectResult.Expression(Expression.Property("name")))
                 .From(DataSource.Database(_db))
                 .Where(Expression.Property("name")
-                    .NotNull()
+                    .NotNullOrMissing()
                     .And(Expression.Property("type").EqualTo("task-list")))
                 .OrderBy(Ordering.Property("name"));
 
@@ -168,11 +170,10 @@ namespace Training.Core
                     SelectResult.Expression(Function.Count(1)))
                 .From(DataSource.Database(_db))
                 .Where(Expression.Property("type").EqualTo(TasksModel.TaskType)
-                    .And(Expression.Property("complete").Is(false)))
-                .GroupBy(Expression.Property("taskList.id"))
-                .ToLive();
+                    .And(Expression.Property("complete").EqualTo(false)))
+                .GroupBy(Expression.Property("taskList.id"));
 
-            _incompleteQuery.Changed += (sender, args) =>
+            _cancelIncomplete = _incompleteQuery.AddChangeListener(null, (sender, args) =>
             {
                 _incompleteCount.Clear();
                 foreach (var result in args.Rows) {
@@ -184,8 +185,7 @@ namespace Training.Core
                         ? _incompleteCount[row.DocumentID]
                         : 0;
                 }
-            };
-            _incompleteQuery.Run();
+            });
         }
 
         #endregion
@@ -195,6 +195,7 @@ namespace Training.Core
         public void Dispose()
         {
             _db.Close();
+            _incompleteQuery.RemoveChangeListener(_cancelIncomplete);
             _incompleteQuery.Dispose();
             _fullQuery.Dispose();
             _filteredQuery.Dispose();
