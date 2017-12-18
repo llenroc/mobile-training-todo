@@ -162,10 +162,10 @@ namespace Training.Core
             }
 
             _replication = new Replicator(config);
-            _replication.StatusChanged += (sender, args) =>
+            _replication.AddChangeListener((sender, args) =>
             {
                 Console.WriteLine(args.Status.Activity);
-            };
+            });
             _replication.Start();
         }
 
